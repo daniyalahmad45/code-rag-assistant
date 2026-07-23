@@ -34,7 +34,7 @@ User question → retrieve.py (semantic search) ←────────┘
                   app.py (Streamlit UI)
 ```
  
-![Architecture diagram](./rag_pipeline_architecture.png)
+![Architecture diagram](./architecture.png)
  
 ## Tech stack (100% free)
  
