@@ -1,0 +1,202 @@
+[
+  {
+    "file": "arduino_link.py",
+    "name": "(module level)",
+    "type": "module",
+    "start_line": 1,
+    "end_line": 2,
+    "code": "import serial\nimport logging\nimport time\nimport config\nlogger = logging.getLogger(__name__)"
+  },
+  {
+    "file": "arduino_link.py",
+    "name": "ArduinoLink",
+    "type": "class",
+    "start_line": 11,
+    "end_line": 40,
+    "code": "class ArduinoLink:\n    def __init__(self):\n        self.connection = None\n        self.enabled = config.ARDUINO_ENABLED\n\n        if not self.enabled:\n            logger.info(\"Arduino integration disabled in config.\")\n            return\n\n        try:\n            self.connection = serial.Serial(config.SERIAL_PORT, config.BAUD_RATE, timeout=1)\n            time.sleep(2)\n            logger.info(f\"Connected to Arduino on {config.SERIAL_PORT}\")\n        except serial.SerialException as e:\n            logger.warning(f\"Could not connect to Arduino: {e}. Continuing without hardware.\")\n            self.connection = None\n\n    def send_command(self, command: str):\n        if not self.connection:\n            return\n\n        try:\n            self.connection.write(f\"{command}\\n\".encode(\"utf-8\"))\n        except serial.SerialException as e:\n            logger.error(f\"Failed to send command to Arduino: {e}\")\n\n    def close(self):\n        if self.connection:\n            self.connection.close()\n            logger.info(\"Arduino connection closed.\")"
+  },
+  {
+    "file": "arduino_link.py",
+    "name": "__init__",
+    "type": "function",
+    "start_line": 12,
+    "end_line": 26,
+    "code": "    def __init__(self):\n        self.connection = None\n        self.enabled = config.ARDUINO_ENABLED\n\n        if not self.enabled:\n            logger.info(\"Arduino integration disabled in config.\")\n            return\n\n        try:\n            self.connection = serial.Serial(config.SERIAL_PORT, config.BAUD_RATE, timeout=1)\n            time.sleep(2)\n            logger.info(f\"Connected to Arduino on {config.SERIAL_PORT}\")\n        except serial.SerialException as e:\n            logger.warning(f\"Could not connect to Arduino: {e}. Continuing without hardware.\")\n            self.connection = None"
+  },
+  {
+    "file": "arduino_link.py",
+    "name": "send_command",
+    "type": "function",
+    "start_line": 28,
+    "end_line": 35,
+    "code": "    def send_command(self, command: str):\n        if not self.connection:\n            return\n\n        try:\n            self.connection.write(f\"{command}\\n\".encode(\"utf-8\"))\n        except serial.SerialException as e:\n            logger.error(f\"Failed to send command to Arduino: {e}\")"
+  },
+  {
+    "file": "arduino_link.py",
+    "name": "close",
+    "type": "function",
+    "start_line": 37,
+    "end_line": 40,
+    "code": "    def close(self):\n        if self.connection:\n            self.connection.close()\n            logger.info(\"Arduino connection closed.\")"
+  },
+  {
+    "file": "attendance.py",
+    "name": "(module level)",
+    "type": "module",
+    "start_line": 1,
+    "end_line": 2,
+    "code": "import csv\nimport os\nimport logging\nfrom datetime import datetime\nfrom config import ATTENDANCE_FILE\nlogger = logging.getLogger(__name__)"
+  },
+  {
+    "file": "attendance.py",
+    "name": "initialize_csv",
+    "type": "function",
+    "start_line": 12,
+    "end_line": 18,
+    "code": "def initialize_csv():\n    \"\"\"Create attendance CSV with headers if it doesn't exist.\"\"\"\n    if not os.path.exists(ATTENDANCE_FILE):\n        with open(ATTENDANCE_FILE, \"w\", newline=\"\") as file:\n            writer = csv.writer(file)\n            writer.writerow([\"Name\", \"Date\", \"Time\", \"Session\"])\n        logger.info(f\"Created attendance file: {ATTENDANCE_FILE}\")"
+  },
+  {
+    "file": "attendance.py",
+    "name": "mark_attendance",
+    "type": "function",
+    "start_line": 21,
+    "end_line": 49,
+    "code": "def mark_attendance(name: str, marked_names: set, session_id: str) -> bool:\n    \"\"\"\n    Mark attendance for a recognized face.\n\n    Args:\n        name: Recognized person's name.\n        marked_names: Set of already-marked names this session.\n        session_id: Unique identifier for the current session.\n\n    Returns:\n        True if attendance was newly marked, False otherwise.\n    \"\"\"\n    if name == \"Unknown\" or name in marked_names:\n        return False\n\n    now = datetime.now()\n    date_str = now.strftime(\"%Y-%m-%d\")\n    time_str = now.strftime(\"%H:%M:%S\")\n\n    try:\n        with open(ATTENDANCE_FILE, \"a\", newline=\"\") as file:\n            writer = csv.writer(file)\n            writer.writerow([name, date_str, time_str, session_id])\n        marked_names.add(name)\n        logger.info(f\"Attendance marked \u2014 Name: {name}, Date: {date_str}, Time: {time_str}\")\n        return True\n    except IOError as e:\n        logger.error(f\"Failed to write attendance for {name}: {e}\")\n        return False"
+  },
+  {
+    "file": "config.py",
+    "name": "(module level)",
+    "type": "module",
+    "start_line": 1,
+    "end_line": 2,
+    "code": "IMAGES_DIR = \"images/\"\nATTENDANCE_FILE = \"attendance.csv\"\nSCREENSHOTS_DIR = \"screenshots/\"\nLOG_FILE = \"attendance_system.log\"\nFACE_RECOGNITION_TOLERANCE = 0.445   # Lower = stricter matching (0.4\u20130.6 recommended)\nFRAME_SKIP = 4                      # Process every Nth frame to improve FPS\nWEBCAM_INDEX = 0                    # Change if using external webcam\nBOX_THICKNESS = 2\nFONT = \"FONT_HERSHEY_DUPLEX\"\nOVERLAY_ALPHA = 0.6                 # Transparency of the info panel\nARDUINO_ENABLED = True\nSERIAL_PORT = \"COM5\"\nBAUD_RATE = 9600"
+  },
+  {
+    "file": "main.py",
+    "name": "(module level)",
+    "type": "module",
+    "start_line": 1,
+    "end_line": 2,
+    "code": "import cv2\nimport os\nimport time\nimport logging\nfrom datetime import datetime\nfrom simple_facerec import SimpleFacerec\nfrom attendance import initialize_csv, mark_attendance\nfrom overlay import draw_face_box, draw_info_panel\nimport config\nfrom arduino_link import ArduinoLink\nlogging.basicConfig(\n    level=logging.INFO,\n    format=\"%(asctime)s [%(levelname)s] %(name)s \u2014 %(message)s\",\n    handlers=[\n        logging.FileHandler(config.LOG_FILE),\n        logging.StreamHandler(),\n    ],\n)\nlogger = logging.getLogger(__name__)\nsession_id = datetime.now().strftime(\"%Y%m%d_%H%M%S\")\nlogger.info(f\"Session started: {session_id}\")\nos.makedirs(config.SCREENSHOTS_DIR, exist_ok=True)\ninitialize_csv()\nsfr = SimpleFacerec()\nsfr.load_encoding_images(config.IMAGES_DIR)\narduino = ArduinoLink() # NEWLINE\nlogger.info(\"Face encodings loaded.\")\ncap = cv2.VideoCapture(config.WEBCAM_INDEX, cv2.CAP_DSHOW)\ncap.set(cv2.CAP_PROP_FRAME_WIDTH, 1270)\ncap.set(cv2.CAP_PROP_FRAME_HEIGHT, 710)\nif not cap.isOpened():\n    logger.critical(\"Cannot open webcam. Check WEBCAM_INDEX in config.py.\")\n    raise SystemExit(\"Webcam not accessible.\")\nmarked_names = set()\nprev_time = 0\nframe_count = 0\nface_locations, face_names = [], []\nlast_denied_time = 0\nlogger.info(\"Entering main loop. Press Q or ESC to quit.\")\nwhile True:\n    ret, frame = cap.read()\n    if not ret:\n        logger.error(\"Frame capture failed. Exiting.\")\n        break\n\n    frame_count += 1\n\n    if frame_count % config.FRAME_SKIP == 0:\n        try:\n            face_locations, face_names = sfr.detect_known_faces(frame)\n        except Exception as e:\n            logger.warning(f\"Detection error on frame {frame_count}: {e}\")\n            face_locations, face_names = [], []\n\n    for face_loc, name in zip(face_locations, face_names):\n        newly_marked = mark_attendance(name, marked_names, session_id)\n        draw_face_box(frame, face_loc, name, newly_marked)\n\n        if newly_marked:\n            arduino.send_command(\"GRANTED\")\n        elif name == \"Unknown\":\n            now_ts = time.time()\n            if now_ts - last_denied_time > 3:\n                arduino.send_command(\"DENIED\")\n                last_denied_time = now_ts\n\n    current_time = time.time()\n    fps = 1 / (current_time - prev_time) if prev_time != 0 else 0\n    prev_time = current_time\n\n    draw_info_panel(frame, fps, marked_names, session_id)\n\n    cv2.imshow(\"AI Attendance System\", frame)\n\n    key = cv2.waitKey(1) & 0xFF\n    if key == ord(\"s\"):\n        filename = os.path.join(\n            config.SCREENSHOTS_DIR,\n            f\"screenshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg\"\n        )\n        cv2.imwrite(filename, frame)\n        logger.info(f\"Screenshot saved: {filename}\")\n\n    if key == ord(\"q\") or key == 27:\n        logger.info(\"Quit signal received.\")\n        break\narduino.close()\ncap.release()\ncv2.destroyAllWindows()\nlogger.info(f\"Session ended. Total marked: {len(marked_names)} \u2014 {sorted(marked_names)}\")"
+  },
+  {
+    "file": "overlay.py",
+    "name": "(module level)",
+    "type": "module",
+    "start_line": 1,
+    "end_line": 2,
+    "code": "import cv2\nimport numpy as np\nfrom datetime import datetime\nimport config"
+  },
+  {
+    "file": "overlay.py",
+    "name": "draw_face_box",
+    "type": "function",
+    "start_line": 9,
+    "end_line": 32,
+    "code": "def draw_face_box(frame, face_loc, name: str, newly_marked: bool):\n    \"\"\"Draw bounding box and label for a detected face.\"\"\"\n    y1, x2, y2, x1 = face_loc\n\n    if name == \"Unknown\":\n        color = (0, 0, 220)\n        label = \"Unknown\"\n    elif newly_marked:\n        color = (0, 215, 255)   # Gold flash on first detection\n        label = f\"Marked: {name}\"\n    else:\n        color = (0, 200, 80)\n        label = name\n\n    # Box\n    cv2.rectangle(frame, (x1, y1), (x2, y2), color, config.BOX_THICKNESS)\n\n    # Label background\n    label_size, _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_DUPLEX, 0.65, 1)\n    cv2.rectangle(frame, (x1, y1 - label_size[1] - 12), (x1 + label_size[0] + 8, y1), color, cv2.FILLED)\n\n    # Label text\n    cv2.putText(frame, label, (x1 + 4, y1 - 6),\n                cv2.FONT_HERSHEY_DUPLEX, 0.65, (255, 255, 255), 1)"
+  },
+  {
+    "file": "overlay.py",
+    "name": "draw_info_panel",
+    "type": "function",
+    "start_line": 35,
+    "end_line": 58,
+    "code": "def draw_info_panel(frame, fps: float, marked_names: set, session_id: str):\n    \"\"\"Draw a semi-transparent info panel in the top-left corner.\"\"\"\n    h, w = frame.shape[:2]\n    panel_w, panel_h = 310, 115\n    overlay = frame.copy()\n\n    cv2.rectangle(overlay, (0, 0), (panel_w, panel_h), (20, 20, 20), cv2.FILLED)\n    cv2.addWeighted(overlay, config.OVERLAY_ALPHA, frame, 1 - config.OVERLAY_ALPHA, 0, frame)\n\n    now = datetime.now().strftime(\"%Y-%m-%d  %H:%M:%S\")\n    lines = [\n        (\"AI Attendance System\", (255, 255, 255), 0.55, 1),\n        (f\"Session: {session_id}\", (160, 160, 160), 0.45, 1),\n        (now, (200, 200, 200), 0.48, 1),\n        (f\"FPS: {int(fps)}   Marked: {len(marked_names)}\", (80, 220, 120), 0.5, 1),\n    ]\n    y = 22\n    for text, color, scale, thickness in lines:\n        cv2.putText(frame, text, (10, y), cv2.FONT_HERSHEY_SIMPLEX, scale, color, thickness)\n        y += 24\n\n    # Bottom watermark\n    cv2.putText(frame, \"Press Q to quit | S to screenshot\",\n                (10, h - 12), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (120, 120, 120), 1)"
+  },
+  {
+    "file": "simple_facerec.py",
+    "name": "(module level)",
+    "type": "module",
+    "start_line": 1,
+    "end_line": 0,
+    "code": "import face_recognition\nimport cv2\nimport os\nimport glob\nimport numpy as np\nimport config"
+  },
+  {
+    "file": "simple_facerec.py",
+    "name": "SimpleFacerec",
+    "type": "class",
+    "start_line": 9,
+    "end_line": 101,
+    "code": "class SimpleFacerec:\n    def __init__(self):\n        self.known_face_encodings = []\n        self.known_face_names = []\n\n        # Resize frame for faster speed (higher than before to preserve detail for far faces)\n        self.frame_resizing = 0.35\n\n    def load_encoding_images(self, images_path):\n        \"\"\"\n        Load encoding images from path\n        :param images_path:\n        :return:\n        \"\"\"\n        images_path = glob.glob(os.path.join(images_path, \"*.*\"))\n\n        print(\"{} encoding images found.\".format(len(images_path)))\n\n        # Store image encoding and names\n        for img_path in images_path:\n            img = cv2.imread(img_path)\n            rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)\n\n            basename = os.path.basename(img_path)\n            filename = os.path.splitext(basename)[0]\n\n            # Strip numbered suffix so \"Daniyal_1\", \"Daniyal_2\" all map to \"Daniyal\"\n            name = filename.split(\"_\")[0]\n\n            encodings = face_recognition.face_encodings(rgb_img)\n            if not encodings:\n                print(f\"Warning: no face found in {basename}, skipping.\")\n                continue\n\n            img_encoding = encodings[0]\n\n            # Store name and encoding\n            self.known_face_encodings.append(img_encoding)\n            self.known_face_names.append(name)\n\n        print(\"Encoding images loaded\")\n\n    def detect_known_faces(self, frame):\n        small_frame = cv2.resize(\n            frame,\n            (0, 0),\n            fx=self.frame_resizing,\n            fy=self.frame_resizing\n        )\n\n        rgb_small_frame = cv2.cvtColor(\n            small_frame,\n            cv2.COLOR_BGR2RGB\n        )\n\n        face_locations = face_recognition.face_locations(\n            rgb_small_frame,\n            number_of_times_to_upsample=2,\n            model=\"hog\"\n        )\n        face_encodings = face_recognition.face_encodings(\n            rgb_small_frame,\n            face_locations\n        )\n\n        face_names = []\n\n        for face_encoding in face_encodings:\n            name = \"Unknown\"\n\n            if self.known_face_encodings:\n                matches = face_recognition.compare_faces(\n                    self.known_face_encodings,\n                    face_encoding,\n                    tolerance=config.FACE_RECOGNITION_TOLERANCE\n                )\n\n                face_distances = face_recognition.face_distance(\n                    self.known_face_encodings,\n                    face_encoding\n                )\n\n                best_match_index = np.argmin(face_distances)\n\n                if matches[best_match_index] and face_distances[best_match_index] < config.FACE_RECOGNITION_TOLERANCE:\n                    name = self.known_face_names[best_match_index]\n\n            face_names.append(name)\n\n        face_locations = np.array(face_locations)\n        face_locations = face_locations / self.frame_resizing\n\n        return face_locations.astype(int), face_names"
+  },
+  {
+    "file": "simple_facerec.py",
+    "name": "__init__",
+    "type": "function",
+    "start_line": 10,
+    "end_line": 15,
+    "code": "    def __init__(self):\n        self.known_face_encodings = []\n        self.known_face_names = []\n\n        # Resize frame for faster speed (higher than before to preserve detail for far faces)\n        self.frame_resizing = 0.35"
+  },
+  {
+    "file": "simple_facerec.py",
+    "name": "load_encoding_images",
+    "type": "function",
+    "start_line": 17,
+    "end_line": 49,
+    "code": "    def load_encoding_images(self, images_path):\n        \"\"\"\n        Load encoding images from path\n        :param images_path:\n        :return:\n        \"\"\"\n        images_path = glob.glob(os.path.join(images_path, \"*.*\"))\n\n        print(\"{} encoding images found.\".format(len(images_path)))\n\n        # Store image encoding and names\n        for img_path in images_path:\n            img = cv2.imread(img_path)\n            rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)\n\n            basename = os.path.basename(img_path)\n            filename = os.path.splitext(basename)[0]\n\n            # Strip numbered suffix so \"Daniyal_1\", \"Daniyal_2\" all map to \"Daniyal\"\n            name = filename.split(\"_\")[0]\n\n            encodings = face_recognition.face_encodings(rgb_img)\n            if not encodings:\n                print(f\"Warning: no face found in {basename}, skipping.\")\n                continue\n\n            img_encoding = encodings[0]\n\n            # Store name and encoding\n            self.known_face_encodings.append(img_encoding)\n            self.known_face_names.append(name)\n\n        print(\"Encoding images loaded\")"
+  },
+  {
+    "file": "simple_facerec.py",
+    "name": "detect_known_faces",
+    "type": "function",
+    "start_line": 51,
+    "end_line": 101,
+    "code": "    def detect_known_faces(self, frame):\n        small_frame = cv2.resize(\n            frame,\n            (0, 0),\n            fx=self.frame_resizing,\n            fy=self.frame_resizing\n        )\n\n        rgb_small_frame = cv2.cvtColor(\n            small_frame,\n            cv2.COLOR_BGR2RGB\n        )\n\n        face_locations = face_recognition.face_locations(\n            rgb_small_frame,\n            number_of_times_to_upsample=2,\n            model=\"hog\"\n        )\n        face_encodings = face_recognition.face_encodings(\n            rgb_small_frame,\n            face_locations\n        )\n\n        face_names = []\n\n        for face_encoding in face_encodings:\n            name = \"Unknown\"\n\n            if self.known_face_encodings:\n                matches = face_recognition.compare_faces(\n                    self.known_face_encodings,\n                    face_encoding,\n                    tolerance=config.FACE_RECOGNITION_TOLERANCE\n                )\n\n                face_distances = face_recognition.face_distance(\n                    self.known_face_encodings,\n                    face_encoding\n                )\n\n                best_match_index = np.argmin(face_distances)\n\n                if matches[best_match_index] and face_distances[best_match_index] < config.FACE_RECOGNITION_TOLERANCE:\n                    name = self.known_face_names[best_match_index]\n\n            face_names.append(name)\n\n        face_locations = np.array(face_locations)\n        face_locations = face_locations / self.frame_resizing\n\n        return face_locations.astype(int), face_names"
+  },
+  {
+    "file": "test_attendance.py",
+    "name": "(module level)",
+    "type": "module",
+    "start_line": 1,
+    "end_line": 3,
+    "code": "import pytest\nimport os\nimport csv\nimport tempfile\nfrom unittest.mock import patch\nfrom datetime import datetime"
+  },
+  {
+    "file": "test_attendance.py",
+    "name": "temp_csv",
+    "type": "function",
+    "start_line": 15,
+    "end_line": 19,
+    "code": "def temp_csv(tmp_path):\n    \"\"\"Create a temporary CSV file for each test.\"\"\"\n    csv_file = tmp_path / \"test_attendance.csv\"\n    with patch(\"config.ATTENDANCE_FILE\", str(csv_file)):\n        yield str(csv_file)"
+  },
+  {
+    "file": "test_attendance.py",
+    "name": "test_initialize_csv_creates_file",
+    "type": "function",
+    "start_line": 24,
+    "end_line": 34,
+    "code": "def test_initialize_csv_creates_file(temp_csv):\n    \"\"\"initialize_csv should create the file with correct headers.\"\"\"\n    with patch(\"attendance.ATTENDANCE_FILE\", temp_csv):\n        from attendance import initialize_csv\n        initialize_csv()\n\n    assert os.path.exists(temp_csv)\n    with open(temp_csv) as f:\n        reader = csv.reader(f)\n        headers = next(reader)\n    assert headers == [\"Name\", \"Date\", \"Time\", \"Session\"]"
+  },
+  {
+    "file": "test_attendance.py",
+    "name": "test_initialize_csv_does_not_overwrite",
+    "type": "function",
+    "start_line": 37,
+    "end_line": 51,
+    "code": "def test_initialize_csv_does_not_overwrite(temp_csv):\n    \"\"\"initialize_csv should not overwrite an existing file.\"\"\"\n    # Write existing data\n    with open(temp_csv, \"w\", newline=\"\") as f:\n        writer = csv.writer(f)\n        writer.writerow([\"Name\", \"Date\", \"Time\", \"Session\"])\n        writer.writerow([\"Alice\", \"2024-01-01\", \"09:00:00\", \"session_1\"])\n\n    with patch(\"attendance.ATTENDANCE_FILE\", temp_csv):\n        from attendance import initialize_csv\n        initialize_csv()\n\n    with open(temp_csv) as f:\n        rows = list(csv.reader(f))\n    assert len(rows) == 2  # header + 1 record, not wiped"
+  },
+  {
+    "file": "test_attendance.py",
+    "name": "test_mark_attendance_writes_record",
+    "type": "function",
+    "start_line": 54,
+    "end_line": 69,
+    "code": "def test_mark_attendance_writes_record(temp_csv):\n    \"\"\"mark_attendance should write a new record to the CSV.\"\"\"\n    with open(temp_csv, \"w\", newline=\"\") as f:\n        csv.writer(f).writerow([\"Name\", \"Date\", \"Time\", \"Session\"])\n\n    marked = set()\n    with patch(\"attendance.ATTENDANCE_FILE\", temp_csv):\n        from attendance import mark_attendance\n        result = mark_attendance(\"Daniyal\", marked, \"session_test\")\n\n    assert result is True\n    assert \"Daniyal\" in marked\n\n    with open(temp_csv) as f:\n        rows = list(csv.reader(f))\n    assert rows[1][0] == \"Daniyal\""
+  },
+  {
+    "file": "test_attendance.py",
+    "name": "test_mark_attendance_no_duplicates",
+    "type": "function",
+    "start_line": 72,
+    "end_line": 86,
+    "code": "def test_mark_attendance_no_duplicates(temp_csv):\n    \"\"\"mark_attendance should not mark the same person twice.\"\"\"\n    with open(temp_csv, \"w\", newline=\"\") as f:\n        csv.writer(f).writerow([\"Name\", \"Date\", \"Time\", \"Session\"])\n\n    marked = {\"Daniyal\"}  # already marked\n    with patch(\"attendance.ATTENDANCE_FILE\", temp_csv):\n        from attendance import mark_attendance\n        result = mark_attendance(\"Daniyal\", marked, \"session_test\")\n\n    assert result is False\n\n    with open(temp_csv) as f:\n        rows = list(csv.reader(f))\n    assert len(rows) == 1  # only header, no new record"
+  },
+  {
+    "file": "test_attendance.py",
+    "name": "test_mark_attendance_ignores_unknown",
+    "type": "function",
+    "start_line": 89,
+    "end_line": 100,
+    "code": "def test_mark_attendance_ignores_unknown(temp_csv):\n    \"\"\"mark_attendance should never mark 'Unknown' faces.\"\"\"\n    with open(temp_csv, \"w\", newline=\"\") as f:\n        csv.writer(f).writerow([\"Name\", \"Date\", \"Time\", \"Session\"])\n\n    marked = set()\n    with patch(\"attendance.ATTENDANCE_FILE\", temp_csv):\n        from attendance import mark_attendance\n        result = mark_attendance(\"Unknown\", marked, \"session_test\")\n\n    assert result is False\n    assert len(marked) == 0"
+  }
+]
