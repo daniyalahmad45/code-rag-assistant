@@ -10,30 +10,7 @@ happens to be semantically closest.
 
 import re
 
-import chromadb
-from sentence_transformers import SentenceTransformer
-
-DB_DIR = "chroma_db"
-COLLECTION_NAME = "code_chunks"
-EMBEDDING_MODEL = "all-MiniLM-L6-v2"
-
-_model = None
-_collection = None
-
-
-def _get_model():
-    global _model
-    if _model is None:
-        _model = SentenceTransformer(EMBEDDING_MODEL)
-    return _model
-
-
-def _get_collection():
-    global _collection
-    if _collection is None:
-        client = chromadb.PersistentClient(path=DB_DIR)
-        _collection = client.get_collection(COLLECTION_NAME)
-    return _collection
+from embed_store import COLLECTION_NAME, get_client, get_model
 
 
 def extract_filename(query: str):
@@ -42,16 +19,17 @@ def extract_filename(query: str):
     return match.group(0) if match else None
 
 
-def retrieve(query: str, top_k: int = 5, file_filter: str = None):
+def retrieve(query: str, top_k: int = 5, file_filter: str = None, collection_name: str = COLLECTION_NAME):
     """
     Returns a list of dicts: { document, metadata, distance }
     sorted by relevance (most relevant first).
 
     If file_filter is set, only chunks from that file are considered.
     If file_filter is None, it's auto-detected from the query text.
+    collection_name picks which indexed repository to search.
     """
-    model = _get_model()
-    collection = _get_collection()
+    model = get_model()
+    collection = get_client().get_collection(collection_name)
 
     if file_filter is None:
         file_filter = extract_filename(query)
@@ -66,6 +44,12 @@ def retrieve(query: str, top_k: int = 5, file_filter: str = None):
         query_kwargs["where"] = {"file": file_filter}
 
     results = collection.query(**query_kwargs)
+
+    # A mentioned filename may not match a stored path exactly (e.g. "utils.py"
+    # vs "src/utils.py"), so fall back to searching the whole repo.
+    if file_filter and not results["ids"][0]:
+        del query_kwargs["where"]
+        results = collection.query(**query_kwargs)
 
     hits = []
     for i in range(len(results["ids"][0])):

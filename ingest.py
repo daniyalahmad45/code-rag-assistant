@@ -25,7 +25,7 @@ def get_source_segment(source_lines, node):
     return "\n".join(source_lines[start:end])
 
 
-def chunk_file(filepath):
+def chunk_file(filepath, base_dir=TARGET_DIR):
     """Parse one Python file and return a list of chunk dicts."""
     with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
         source = f.read()
@@ -38,7 +38,7 @@ def chunk_file(filepath):
 
     source_lines = source.splitlines()
     chunks = []
-    rel_path = filepath.replace(TARGET_DIR + os.sep, "").replace("\\", "/")
+    rel_path = os.path.relpath(filepath, base_dir).replace("\\", "/")
 
     # Module-level chunk: imports, constants, and any top-level code that
     # sits outside a function/class. This captures things like `import
@@ -89,7 +89,7 @@ def ingest_repo(target_dir=TARGET_DIR):
             if filename.endswith(".py"):
                 filepath = os.path.join(root, filename)
                 print(f"Parsing: {filepath}")
-                all_chunks.extend(chunk_file(filepath))
+                all_chunks.extend(chunk_file(filepath, target_dir))
 
     return all_chunks
 

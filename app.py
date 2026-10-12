@@ -1,9 +1,9 @@
 """
 app.py
 
-Streamlit UI for the codebase RAG assistant. Lets a user chat with the
-ingested repo and see each answer alongside the exact source chunks
-(file + line numbers) used to generate it.
+Streamlit UI for the codebase RAG assistant. Lets a user add any Python
+repo (GitHub link or .zip upload), chat with it, and see each answer
+alongside the exact source chunks (file + line numbers) used to generate it.
 
 Run with: streamlit run app.py
 """
@@ -16,7 +16,16 @@ from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
+from embed_store import COLLECTION_NAME
 from generate import answer_question
+from repo_loader import (
+    RepoError,
+    add_github_repo,
+    add_zip_upload,
+    load_sample_repo,
+    repo_info,
+    sample_is_indexed,
+)
 
 st.set_page_config(
     page_title="Codebase Q&A Assistant",
@@ -33,11 +42,18 @@ def logo(size: int) -> str:
     return f"<span class='logo' style='width:{size}px;height:{size}px'>{LOGO_SVG}</span>"
 
 
-SUGGESTIONS = [
+SAMPLE_SUGGESTIONS = [
     ("Entry point", "How does the app start?", "Walk me through what main.py does when the program starts."),
     ("Data", "How is attendance recorded?", "How does attendance.py record and store attendance?"),
     ("Vision", "How are faces recognized?", "How does simple_facerec.py detect and recognize faces?"),
     ("Hardware", "How does it talk to the Arduino?", "How does the code communicate with the Arduino?"),
+]
+
+GENERIC_SUGGESTIONS = [
+    ("Overview", "What does this codebase do?", "Give me a high-level overview of what this codebase does and how it's structured."),
+    ("Entry point", "Where does execution start?", "Where is the main entry point of this project and what happens when it runs?"),
+    ("Structure", "What are the core classes?", "What are the most important classes in this codebase and what is each responsible for?"),
+    ("Errors", "How are errors handled?", "How does this codebase handle errors and exceptions?"),
 ]
 
 st.markdown(
@@ -193,6 +209,27 @@ st.markdown(
     .side-foot { font-size: .78rem; line-height: 1.6; color: var(--faint); }
     .side-foot code { background: transparent; color: var(--muted); padding: 0; font-size: .74rem; }
 
+    /* Repo picker and add-repo panel */
+    section[data-testid="stSidebar"] div[data-baseweb="select"] > div {
+        background: var(--surface); border-color: var(--line); border-radius: 10px;
+    }
+    section[data-testid="stSidebar"] div[data-testid="stPopover"] button {
+        justify-content: flex-start; border-radius: 10px; border: 1px dashed #4A4740;
+        background: transparent; color: var(--muted);
+    }
+    section[data-testid="stSidebar"] div[data-testid="stPopover"] button:hover {
+        border-color: var(--accent); color: var(--text);
+    }
+    .repo-chip {
+        display: inline-block; font-family: var(--mono); font-size: .8rem; color: var(--accent);
+        background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: .05rem .4rem;
+    }
+    .st-key-onboard {
+        background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 1.1rem 1.2rem;
+    }
+    .or-rule { display: flex; align-items: center; gap: .8rem; margin: .4rem 0; }
+    .or-rule::before, .or-rule::after { content: ""; flex: 1; border-top: 1px solid var(--line); }
+
     @media (max-width: 640px) {
         .hello h1 { font-size: 2.3rem; }
         .user-bubble { max-width: 90%; }
@@ -207,17 +244,41 @@ st.markdown(
 # ---------- State ----------
 def new_chat():
     cid = uuid.uuid4().hex[:8]
-    st.session_state.chats[cid] = {"title": "New chat", "messages": []}
+    st.session_state.chats[cid] = {"title": "New chat", "messages": [], "repo": st.session_state.repo}
     st.session_state.current = cid
 
 
+def switch_repo(collection):
+    """Make a repo active; questions about it start in a fresh chat."""
+    st.session_state.repo = collection
+    if st.session_state.chats[st.session_state.current]["messages"]:
+        new_chat()
+    else:
+        st.session_state.chats[st.session_state.current]["repo"] = collection
+
+
 if "chats" not in st.session_state:
+    # Repos a visitor adds are only listed in their own session; the sample is shared.
+    st.session_state.my_repos = []
+    st.session_state.repo = COLLECTION_NAME if sample_is_indexed() else None
     st.session_state.chats = {}
     new_chat()
 if "pending" not in st.session_state:
     st.session_state.pending = None
 
+# Indexes can disappear (old ones are pruned on a shared deployment), so re-check each run.
+repos = {}
+for name in ([COLLECTION_NAME] if sample_is_indexed() else []) + st.session_state.my_repos:
+    info = repo_info(name)
+    if info:
+        repos[name] = info
+st.session_state.my_repos = [r for r in st.session_state.my_repos if r in repos]
+if st.session_state.repo not in repos:
+    st.session_state.repo = next(iter(repos), None)
+
 chat = st.session_state.chats[st.session_state.current]
+if chat["repo"] not in repos:
+    chat["repo"] = st.session_state.repo
 
 
 # ---------- Helpers ----------
@@ -266,6 +327,47 @@ def render_sources(sources: list):
                 st.code(s["code"], language="python", line_numbers=True)
 
 
+def run_indexing(task, *args):
+    """Run an indexing job with live progress, then switch to the new repo."""
+    with st.status("Starting…", expanded=True) as status:
+        def progress(msg):
+            status.update(label=msg + "…")
+            st.write(msg)
+        try:
+            info = task(*args, progress=progress)
+        except RepoError as e:
+            status.update(label="Couldn't add that repo", state="error")
+            st.error(str(e))
+            return
+        except Exception as e:
+            status.update(label="Something went wrong", state="error")
+            st.error(f"Indexing failed: {e}")
+            return
+        status.update(label=f"Indexed {info['chunks']} chunks from {info['files']} files", state="complete")
+
+    if info["collection"] != COLLECTION_NAME and info["collection"] not in st.session_state.my_repos:
+        st.session_state.my_repos.append(info["collection"])
+    switch_repo(info["collection"])
+    st.rerun()
+
+
+def add_repo_form(prefix: str):
+    github_tab, zip_tab = st.tabs(["GitHub link", "Upload .zip"])
+    with github_tab:
+        url = st.text_input(
+            "Public GitHub repository",
+            placeholder="https://github.com/owner/repo",
+            key=f"{prefix}_url",
+        )
+        if st.button("Index repository", key=f"{prefix}_gh_go", type="primary", disabled=not url.strip()):
+            run_indexing(add_github_repo, url)
+    with zip_tab:
+        upload = st.file_uploader("Zipped Python project", type=["zip"], key=f"{prefix}_zip")
+        if st.button("Index upload", key=f"{prefix}_zip_go", type="primary", disabled=upload is None):
+            run_indexing(add_zip_upload, upload.name, upload.getvalue())
+    st.caption("Python files only · up to 50 MB · indexing takes under a minute for most repos.")
+
+
 def export_markdown(c: dict) -> str:
     lines = [f"# {c['title']}\n"]
     for m in c["messages"]:
@@ -291,6 +393,20 @@ with st.sidebar:
             st.session_state.pending = None
             st.rerun()
 
+    st.markdown("<div class='label' style='margin:1.2rem 0 .4rem'>Repository</div>", unsafe_allow_html=True)
+    if repos:
+        st.session_state.repo_select = st.session_state.repo
+        st.selectbox(
+            "Repository",
+            options=list(repos),
+            format_func=lambda c: repos[c]["name"],
+            key="repo_select",
+            label_visibility="collapsed",
+            on_change=lambda: switch_repo(st.session_state.repo_select),
+        )
+    with st.popover("Add a repository", icon=":material/add:", width="stretch"):
+        add_repo_form("side")
+
     past = [(cid, c) for cid, c in reversed(st.session_state.chats.items()) if c["messages"]]
     if past:
         st.markdown("<div class='label' style='margin:1.2rem 0 .4rem .7rem'>Recent</div>", unsafe_allow_html=True)
@@ -299,6 +415,8 @@ with st.sidebar:
             if st.button(c["title"], key=f"chat_{cid}", width="stretch",
                          type="primary" if is_current else "secondary"):
                 st.session_state.current = cid
+                if c["repo"] in repos:
+                    st.session_state.repo = c["repo"]
                 st.rerun()
 
     if chat["messages"]:
@@ -326,21 +444,43 @@ with st.sidebar:
     )
 
 
+# ---------- First run: nothing indexed yet ----------
+if not repos:
+    st.markdown(
+        f"""
+        <div class="hello" style="padding-top:8vh">
+            {logo(72)}
+            <h1>Point me at a <em>codebase</em>.</h1>
+            <p>Add any public Python repo from GitHub, or upload one as a .zip, then ask it anything.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    with st.container(key="onboard"):
+        add_repo_form("main")
+        st.markdown("<div class='or-rule label'>or</div>", unsafe_allow_html=True)
+        if st.button("Try the sample repo (face-recognition attendance)", icon=":material/play_arrow:", width="stretch"):
+            run_indexing(load_sample_repo)
+    st.chat_input("Add a repository to start asking questions", disabled=True)
+    st.stop()
+
 # ---------- Empty state ----------
+active = repos[chat["repo"]]
 if not chat["messages"] and not st.session_state.pending:
     st.markdown(
         f"""
         <div class="hello">
             {logo(72)}
             <h1>What shall we <em>read</em> today?</h1>
-            <p>Ask about any function, file, or flow in the repository. Answers come with line-level sources.</p>
+            <p>Ask anything about <span class="repo-chip">{html.escape(active['name'])}</span>. Answers come with line-level sources.</p>
         </div>
         """,
         unsafe_allow_html=True,
     )
+    suggestions = SAMPLE_SUGGESTIONS if chat["repo"] == COLLECTION_NAME else GENERIC_SUGGESTIONS
     with st.container(key="suggest"):
         cols = st.columns(2)
-        for i, (tag, label, prompt) in enumerate(SUGGESTIONS):
+        for i, (tag, label, prompt) in enumerate(suggestions):
             if cols[i % 2].button(f"**{tag}**\n\n{label}", key=f"sugg_{i}", width="stretch"):
                 st.session_state.pending = prompt
                 st.rerun()
@@ -353,7 +493,7 @@ for i, m in enumerate(chat["messages"]):
         st.markdown(m["result"]["answer"])
         render_sources(m["result"]["sources"])
 
-typed = st.chat_input("Ask the Codebase Q&A Assistant…")
+typed = st.chat_input(f"Ask about {active['name']}…")
 question = typed or st.session_state.pending
 st.session_state.pending = None
 
@@ -368,7 +508,7 @@ if question:
         )
         start = time.time()
         try:
-            result = answer_question(question)
+            result = answer_question(question, collection_name=chat["repo"])
         except Exception as e:
             thinking.empty()
             st.error(f"Couldn't produce an answer: {e}")

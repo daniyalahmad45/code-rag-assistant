@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai.errors import ServerError, ClientError
 
+from embed_store import COLLECTION_NAME
 from retrieve import retrieve
 
 load_dotenv()
@@ -50,8 +51,8 @@ Answer:"""
     return prompt
 
 
-def answer_question(question: str, top_k: int = 5) -> dict:
-    hits = retrieve(question, top_k=top_k)
+def answer_question(question: str, top_k: int = 5, collection_name: str = COLLECTION_NAME) -> dict:
+    hits = retrieve(question, top_k=top_k, collection_name=collection_name)
     prompt = build_prompt(question, hits)
 
     max_retries = 3
