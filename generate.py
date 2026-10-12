@@ -82,6 +82,7 @@ def answer_question(question: str, top_k: int = 5) -> dict:
                 "end_line": h["metadata"]["end_line"],
                 "name": h["metadata"]["name"],
                 "type": h["metadata"]["type"],
+                "code": h["document"],
             }
             for h in hits
         ],
