@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/logo.svg" width="96" alt="Codebase Q&A Assistant logo"></p>
+
 # Codebase Q&A Assistant (RAG)
  
 An AI assistant that answers natural-language questions about a code repository — grounded strictly in the actual code, with exact file and line citations for every claim.
@@ -9,6 +11,8 @@ Built as a portfolio project to demonstrate practical Retrieval-Augmented Genera
 New developers joining an unfamiliar codebase spend significant time just understanding how things fit together. This tool lets you ask plain-English questions — "how does X work," "what happens if Y fails" — and get an answer sourced directly from the code, not from a model's guesswork. Every answer includes the exact file and line numbers it came from, so you can verify it in seconds.
  
 ## Demo
+ 
+![Codebase Q&A Assistant chat interface](assets/screenshot.png)
  
 Ask a question like:
 > "What happens end-to-end when a known face is detected, from recognition to being logged?"

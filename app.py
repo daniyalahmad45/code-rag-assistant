@@ -97,7 +97,8 @@ st.markdown(
     .st-key-suggest div[data-testid="stButton"] > button:hover {
         border-color: var(--accent); background: var(--surface-2); color: var(--text);
     }
-    .st-key-suggest div[data-testid="stButton"] > button p { font-size: .92rem; line-height: 1.45; }
+    .st-key-suggest div[data-testid="stButton"] > button > div { width: 100%; justify-content: flex-start; }
+    .st-key-suggest div[data-testid="stButton"] > button p { font-size: .92rem; line-height: 1.45; text-align: left; }
     .st-key-suggest div[data-testid="stButton"] > button p strong {
         display: block; font-family: var(--mono); font-weight: 500; font-size: .66rem;
         letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin-bottom: .25rem;
@@ -162,10 +163,6 @@ st.markdown(
         border-radius: 12px; background: var(--accent); color: var(--bg);
     }
     div[data-testid="stChatInput"] button:disabled { background: var(--surface-2); color: var(--faint); }
-    .disclaimer {
-        position: fixed; bottom: .45rem; left: 0; right: 0; text-align: center; z-index: 100;
-        font-size: .7rem; color: var(--faint); pointer-events: none;
-    }
 
     /* ---------- Sidebar ---------- */
     section[data-testid="stSidebar"] { background: #0F0F0E; border-right: 1px solid var(--line); }
@@ -357,10 +354,6 @@ for i, m in enumerate(chat["messages"]):
         render_sources(m["result"]["sources"])
 
 typed = st.chat_input("Ask the Codebase Q&A Assistant…")
-st.markdown(
-    "<div class='disclaimer'>Answers are generated from retrieved code. Check the cited lines.</div>",
-    unsafe_allow_html=True,
-)
 question = typed or st.session_state.pending
 st.session_state.pending = None
 
